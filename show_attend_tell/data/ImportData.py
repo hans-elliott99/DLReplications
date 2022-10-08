@@ -23,14 +23,20 @@ def get_images_and_save(split:str, n_samples:int,
                         fresh_dir:bool=True):
     "Retrieves images from urls and saves them to a directory. Saves the relative image path, url, and caption for all successful downloads."
     OUT_DIR = f"{PATH_TO_DATAFOLDER}/{split}_images/"
+    log_file = f"{PATH_TO_DATAFOLDER}/metadata/{split}-import-log.txt"
 
+    # empty log file if already exists
+    open(log_file, 'w').close()
+
+    # load in the downloaded 'metadata' - ie, url - caption pairs
     meta = _import_metadata(split, n_samples)
     urls = [u for l, u in meta]
     labels = [l for l, u in meta]
 
-    if fresh_dir:  # see if dir exists - if so remove it to get a clean slate (this will delete any saved items in the dir)
+    # if out_dir already exits, remove for a clean slate
+    if fresh_dir:  
         if os.path.isdir(OUT_DIR):
-            shutil.rmtree(OUT_DIR)
+            shutil.rmtree(OUT_DIR) # remove
         os.mkdir(OUT_DIR) # make a new empty dir
     else:
         if not os.path.isdir(OUT_DIR):
