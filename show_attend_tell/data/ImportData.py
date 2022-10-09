@@ -9,7 +9,7 @@ import json
 import PIL.Image
 
 
-
+# os.path.abspath()
 PATH_TO_METADATA = "./metadata"
 PATH_TO_DATAFOLDER = "."
 
@@ -51,7 +51,7 @@ def get_images_and_save(split:str, n_samples:int,
         elif 9 < total < 100:
             str_total = "0"+str(total)
         elif total > 99:
-            str_total = str(total)
+            str_total = str(total) ##remove this stuff
         img_path = os.path.join(OUT_DIR+str(total)+".jpg")
         
         try: #try the url, if successful open the image and save to the img_path
@@ -62,7 +62,7 @@ def get_images_and_save(split:str, n_samples:int,
             img.save(img_path)
 
             # save the image path and label and update the counter
-            saved_paths.append(img_path.strip('.'))
+            saved_paths.append(img_path.strip('.'))  ##??! .jpg
             saved_labels.append(labels[ix])
             saved_urls.append(url)
             total += 1
@@ -99,7 +99,7 @@ def save_meta(meta_dict, split):
 def load_meta(path):
     """Load in 'train' or 'valid' metadata. Metadata includes paths to images and their captions."""
     with open(path, 'r') as f:
-        return json.load(f)
+        return json.load(f) ##?
 
 
 
