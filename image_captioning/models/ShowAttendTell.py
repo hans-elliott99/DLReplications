@@ -1,6 +1,6 @@
 import torch
 import torchvision
-from data.LoadData import StringInt
+from data.LoadData import String2Int
 
 class Encoder(torch.nn.Module):
     def __init__(self, encoded_image_size=14):
@@ -59,7 +59,7 @@ class SoftAttention(torch.nn.Module):
 
         
 class Decoder(torch.nn.Module):
-    def __init__(self, embed_dim, dec_hidden_dim, attention_dim, stoi_config:StringInt,
+    def __init__(self, embed_dim, dec_hidden_dim, attention_dim, string2int:String2Int,
                 enc_output_dim=2048, activ_fn=torch.nn.ReLU, dropout=0.0
     ) -> None:
         """
@@ -76,8 +76,8 @@ class Decoder(torch.nn.Module):
         self.enc_output_dim = enc_output_dim
 
         #data specs
-        self.vocab_size = len(stoi_config)
-        self.pad_tok_idx = stoi_config.stoi[stoi_config.pad_token]
+        self.vocab_size = len(string2int)
+        self.pad_tok_idx = string2int.stoi[string2int.pad_token]
         
         #core model
         self.attention = SoftAttention(enc_output_dim=enc_output_dim, dec_hidden_dim=dec_hidden_dim,
@@ -122,17 +122,16 @@ class Decoder(torch.nn.Module):
         encoder_output = encoder_output.view(batch_size, -1, encoder_dim) ##(batch_size, num_pixels, encoder_dim)
         num_pixels = encoder_output.size(1)
 
-        # Sort input data by decreasing length to avoid using pad tokens
-        # Also calculate decode lengths - the proper length of decoded output for each caption 
+        # Sort input data by decreasing length to avoid using pad tokens (we can then use a simple index method to continue decode the longest captions)
         caption_lengths = torch.tensor(
             [len([w.item() for w in caption if w != self.pad_tok_idx]) for caption in y_encodings],
             device=self.device
             )
         caption_lengths, sort_idx = caption_lengths.sort(dim=0, descending=True)
-
         encoder_output = encoder_output[sort_idx]
         y_encodings = y_encodings[sort_idx]
 
+        # Also calculate decode lengths - the proper length of decoded output for each caption 
         decode_lengths = (caption_lengths - 1).tolist() ##- 1 since we don't run the 'end' token through the decoder 
         
         # Output Word Embeddings
