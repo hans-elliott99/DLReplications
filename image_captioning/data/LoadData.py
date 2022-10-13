@@ -19,9 +19,9 @@ class String2Int:
         all_words = ''.join([c for c in all_words if c not in remove_punct])
         unique_words = sorted(set(all_words.lower().split()))
         stoi = {word:i+3 for i,word in enumerate(unique_words)}
-        stoi[start_token] = 0
-        stoi[stop_token] = 1
-        stoi[pad_token] = 2
+        stoi[pad_token] = 0
+        stoi[start_token] = 1
+        stoi[stop_token] = 2
 
         self.stoi = stoi
         self.itos = {i:s for s,i in stoi.items()}
@@ -72,7 +72,7 @@ class ImageCaptionDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         # IMAGE
         img_path = self.X_paths[idx]
-        img = torchvision.io.read_image(img_path)
+        img = torchvision.io.read_image(img_path, mode=torchvision.io.ImageReadMode.RGB) ##read image and convert to RGB if not
         img = self._prep_image(img.float(), transforms=self.transforms)
 
         # LABEL
