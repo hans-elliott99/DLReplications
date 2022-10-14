@@ -1,7 +1,9 @@
 import torch
 import os
 
-def save_checkpoint(out_dir, config, epoch, score, encoder, decoder, encoder_optimizer, decoder_optimizer, is_best=False, filename='checkpoint'):
+def save_checkpoint(out_dir, config, epoch, score, 
+                    encoder, decoder, encoder_optimizer, decoder_optimizer, 
+                    is_best=False, filename='checkpoint'):
     """
     Save model checkpoint.
     """
@@ -21,12 +23,17 @@ def save_checkpoint(out_dir, config, epoch, score, encoder, decoder, encoder_opt
     torch.save(state, os.path.join(out_dir, filename))
 
 
-def load_checkpoint(filepath, encoder, decoder, encoder_optimizer, decoder_optimizer):
+def load_checkpoint(filepath):
+    """
+    returns: encoder, decoder, encoder_optimizer, decoder_optimizer, 
+    """
     # probably should just do this in train.py...
-    state = torch.load(filepath)
-    encoder.load_state_dict(state['encoder'])
-    decoder.load_state_dict(state['decoder'])
-    encoder_optimizer.load_state_dict(state['encoder_optimizer'])
-    decoder_optimizer.load_state_dict(state['decoder_optimizer'])
-
-
+    checkpoint = torch.load(filepath)
+    epoch = checkpoint['epoch']
+    encoder = checkpoint['encoder']
+    decoder = checkpoint['decoder']
+    encoder_optimizer = checkpoint['encoder_optimizer']
+    decoder_optimizer = checkpoint['decoder_optimizer']
+    score = checkpoint['score']
+    config = checkpoint['config']
+    
