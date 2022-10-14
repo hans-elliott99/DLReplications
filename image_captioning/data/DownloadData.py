@@ -95,11 +95,11 @@ def save_meta(meta_dict, split):
     with open(f'{PATH_TO_METADATA}/{split}_meta.json', 'w') as f:
         json.dump(meta_dict, f, sort_keys=True, indent=4)
 
-def load_meta(path):
-    """Load in 'train' or 'valid' metadata. Metadata includes paths to images and their captions."""
-    with open(path, 'r') as f:
-        data = json.load(f) ##?
-        return data
+# def load_meta(path):
+#     """Load in 'train' or 'valid' metadata. Metadata includes paths to images and their captions."""
+#     with open(path, 'r') as f:
+#         data = json.load(f) ##?
+#         return data
 
 
 if __name__=='__main__':

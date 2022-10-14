@@ -1,9 +1,15 @@
 import torch
 import torchvision
+import json
 
+def load_meta(path):
+    """Load in 'train' or 'valid' metadata. Metadata includes paths to images and their captions."""
+    with open(path, 'r') as f:
+        data = json.load(f) ##?
+        return data
 
 class String2Int:
-    def __init__(self, labels, start_token, stop_token, pad_token, remove_punct=""):
+    def __init__(self, labels=None, start_token="<sos>", stop_token="<eos>", pad_token="<pad>", remove_punct="", saved_dict=None):
         """
         Encodes strings as integers and saves useful information about the string-integer mappings.
 
@@ -12,23 +18,51 @@ class String2Int:
         stop_token = the special token used to stop a phrase, such as <eos> (should not be same as start)\n
         pad_token = the special token used to pad phrases to the same length\n
         remove_punct = a single string listing punctuation to remove from the labels before encoding them\n
+        saved_dict = optionally provide a saved dict containing the String2Int info instead of specifying it in init.
 
         Call with a str to return an int, and call with an int to return a str.
         """
-        all_words = ' '.join(labels)
-        all_words = ''.join([c for c in all_words if c not in remove_punct])
-        unique_words = sorted(set(all_words.lower().split()))
-        stoi = {word:i+3 for i,word in enumerate(unique_words)}
-        stoi[pad_token] = 0
-        stoi[start_token] = 1
-        stoi[stop_token] = 2
-
-        self.stoi = stoi
-        self.itos = {i:s for s,i in stoi.items()}
         self.start_token=start_token
         self.stop_token=stop_token
         self.pad_token=pad_token
         self.remove_punct=remove_punct
+        if saved_dict is None:
+            assert labels is not None, "provide labels"
+            all_words = ' '.join(labels)
+            all_words = ''.join([c for c in all_words if c not in self.remove_punct])
+            unique_words = sorted(set(all_words.lower().split()))
+            self._make_mappings(unique_words)
+        else:
+            self._from_saved(saved_dict)
+
+    def _make_mappings(self, unique_words):
+        
+        stoi = {word:i+3 for i,word in enumerate(unique_words)}
+        stoi[self.pad_token] = 0
+        stoi[self.start_token] = 1
+        stoi[self.stop_token] = 2
+
+        self.stoi = stoi
+        self.itos = {i:s for s,i in stoi.items()}
+    
+    def _from_saved(self, saved_dict):
+        self.stoi = saved_dict['stoi']
+        self.itos = saved_dict['itos']
+        self.start_token = saved_dict['start_token']
+        self.stop_token = saved_dict['stop_token']
+        self.pad_token = saved_dict['pad_token']
+        self.remove_punct = saved_dict['remove_punct']
+
+    def save_dict(self):
+        """Save String2Int configuration in Python dictionary form. Can be used to load an identical String2Int object."""
+        return {
+            'stoi' : self.stoi,
+            'itos' : self.itos,
+            'start_token' : self.start_token,
+            'stop_token' : self.stop_token,
+            'pad_token' : self.pad_token,
+            'remove_punct' : self.remove_punct
+        }
     
     def __len__(self):
         return len(self.stoi)
@@ -44,7 +78,6 @@ class String2Int:
                 raise ValueError
         except ValueError as e:
             print(f"ValueError: Item is of type {type(item)} and not str or int")
-
 
 class ImageCaptionDataset(torch.utils.data.Dataset):
     def __init__(self, X_paths, y_labels, string2int:String2Int, transforms=None, augmentation=None):

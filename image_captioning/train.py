@@ -6,8 +6,7 @@ import time, os, sys, warnings
 import matplotlib.pyplot as plt
 from nltk.translate.bleu_score import corpus_bleu
 
-from data.DownloadData import load_meta
-from data.LoadData import ImageCaptionDataset, String2Int
+from data.LoadData import ImageCaptionDataset, String2Int, load_meta
 from models import ShowAttendTell
 from utils import metrics, SaveModel
 
@@ -35,7 +34,7 @@ config = dict(
     # Training Params
     device = device,
     workers = 1,
-    epochs = 2,
+    epochs = 20,
     batch_size = 16,
     encoder_lr = 1e-4,
     decoder_lr = 3e-4,
@@ -71,10 +70,8 @@ def main():
                             remove_punct=config['remove_punct']
     )
     config['vocab_size'] = len(stoi_map)
-    # longest_caption_length = len(max([line.split() for line in train_meta['labels']], key=len))
-    # print(f"longest caption length = {longest_caption_length}")
+    config['string2int'] = stoi_map.save_dict()
 
-    
     # PREP MODEL ---
     encoder = ShowAttendTell.Encoder(device=device)
     encoder.finetune(config['enc_finetune'])
@@ -98,14 +95,12 @@ def main():
     # DATASETS+LOADERS ---
     train_dataset = ImageCaptionDataset(X_paths=train_paths[:SAMPLES],
                                         y_labels=train_meta['labels'][:SAMPLES],
-                                        split="train",
                                         string2int=stoi_map,
                                         transforms=encoder.transforms, ##extracted from the resnet module loaded from torchvision
                                         augmentation=None
                                         )
     valid_dataset = ImageCaptionDataset(X_paths=valid_paths, 
                                         y_labels=valid_meta['labels'],
-                                        split="valid",
                                         string2int=stoi_map,
                                         transforms=encoder.transforms
                                         )
@@ -190,7 +185,7 @@ def main():
                 encoder, decoder,
                 enc_optimizer, dec_optimizer,
                 is_best=is_bleu_best,
-                filename='mod'
+                filename=f"mod_{config['epochs']}ep"
             )
             epochs_since_improve = 0 ##reset to 0 if we have an improvement
             print("\n")
@@ -345,35 +340,39 @@ def batched_valid(valid_dataloader, encoder, decoder, criterion, stoi_map, epoch
 
 
 if __name__ == '__main__':
+    sys.stdout = open(os.path.abspath('./logs/console-output.txt'), 'w')
+
     print(f"device = {device}\n")
 
     start = time.time()
     main()
-    print(f"Total Runtime: {time.time - start :.3f}")
+    print(f"Total Runtime: {time.time() - start :.3f}")
 
-    losses = metrics.LoadMetricLog("./logs/losses.txt")
-    val_losses = metrics.LoadMetricLog("./logs/val_losses.txt")
-    top5acc = metrics.LoadMetricLog("./logs/top5acc.txt")
-    val_top5acc = metrics.LoadMetricLog("./logs/val_top5acc.txt")
-    bleu4 = metrics.LoadMetricLog("./logs/bleu4.txt")
+    sys.stdout.close()
+
+    # losses = metrics.LoadMetricLog("./logs/losses.txt")
+    # val_losses = metrics.LoadMetricLog("./logs/val_losses.txt")
+    # top5acc = metrics.LoadMetricLog("./logs/top5acc.txt")
+    # val_top5acc = metrics.LoadMetricLog("./logs/val_top5acc.txt")
+    # bleu4 = metrics.LoadMetricLog("./logs/bleu4.txt")
     
-    plt.figure(figsize=(12, 8))
+    # plt.figure(figsize=(12, 8))
 
-    plt.subplot(221)
-    plt.title("Loss")
-    plt.plot(losses, label="train")
-    plt.plot(val_losses, label="valid")
-    plt.legend()
+    # plt.subplot(221)
+    # plt.title("Loss")
+    # plt.plot(losses, label="train")
+    # plt.plot(val_losses, label="valid")
+    # plt.legend()
 
-    plt.subplot(222)
-    plt.title("Accuracy")
-    plt.plot(top5acc, label="train")
-    plt.plot(val_top5acc, label="valid")
-    plt.legend()
+    # plt.subplot(222)
+    # plt.title("Accuracy")
+    # plt.plot(top5acc, label="train")
+    # plt.plot(val_top5acc, label="valid")
+    # plt.legend()
 
-    plt.subplot(223)
-    plt.title("BLEU 4 Score")
-    plt.plot(bleu4, label="valid")
-    plt.legend()
+    # plt.subplot(223)
+    # plt.title("BLEU 4 Score")
+    # plt.plot(bleu4, label="valid")
+    # plt.legend()
 
-    plt.show()
+    # plt.show()

@@ -51,6 +51,7 @@ def plot_predicted(image, pred_seq, alphas, string2int, smooth=True, im_size=14)
     """Visualize attention of model when predicting a new caption."""
 
     if torch.is_tensor(image):
+        image = image.cpu()
         if len(image.size()) > 3:
             assert image.size(0)==1, "only provide one image"
             image = image.squeeze(0)
@@ -70,9 +71,9 @@ def plot_predicted(image, pred_seq, alphas, string2int, smooth=True, im_size=14)
 
         if t > 0:
             if smooth:
-                alpha = skimage.transform.pyramid_expand(alphas[t-1].numpy().reshape(im_size,im_size), upscale=24, sigma=8)
+                alpha = skimage.transform.pyramid_expand(alphas[t-1].cpu().numpy().reshape(im_size,im_size), upscale=24, sigma=8)
             else:
-                alpha = skimage.transform.resize(alphas[t-1].numpy(), [im_size*24, im_size*24])
+                alpha = skimage.transform.resize(alphas[t-1].cpu().numpy(), [im_size*24, im_size*24])
             opacity=0.7
         else:
             alpha = np.ones((im_size*24, im_size*24, 1))

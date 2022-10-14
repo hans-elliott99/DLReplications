@@ -1,3 +1,4 @@
+from email import message
 from pickletools import string1
 import torch
 import torchvision
@@ -26,7 +27,7 @@ def beam_caption(image, encoder, decoder, string2int,
     elif len(image.size()) == 4:
         assert image.size()[0] == 1, "Provide a single image"
     
-    device = encoder.device
+    device = next(encoder.parameters()).device
     assert device==image.device
 
     # ENCODE
@@ -52,9 +53,10 @@ def beam_caption(image, encoder, decoder, string2int,
     ## Store completed sequences and score
     complete_seqs = list()
     complete_seq_scores = list()
+    complete_seqs_alpha = list()
 
-    ## Store alphas (attention scores) to visualize attention
-    alphas = list() ##could be torch.tensor of <pad>, remove pads later
+    # Tensor to store top k sequences' alphas; now they're just 1s
+    seqs_alpha = torch.ones(beam_size, 1, enc_image_size, enc_image_size).to(device)  # (k, 1, enc_image_size, enc_image_size)
 
     # DECODE 
     step = 1
@@ -88,15 +90,21 @@ def beam_caption(image, encoder, decoder, string2int,
             top_k_scores, top_k_words = scores[0].topk(k=beam_size, dim=0, largest=True, sorted=True) ##(s),(s)
         else:
             top_k_scores, top_k_words = scores.view(-1).topk(k=beam_size, dim=0, largest=True, sorted=True)  ##(s),(s)
-
+            
         # Convert unrolled indices to actual indices by dividing by the vocab size
-        prev_word_inds = (top_k_words / decoder.vocab_size).long() ##(s) [0, beam_size]
-        next_word_inds = top_k_words % decoder.vocab_size ##(s) [0, vocab_size]
+        prev_word_inds = (top_k_words / decoder.vocab_size).long() ##(s) ~int[0, beam_size]
+        next_word_inds = top_k_words % decoder.vocab_size ##(s) ~int[0, vocab_size]
 
         # Add new words to sequence (which is a LongTensor), storing the (beam_size) previous words with highest scores and the new words 
         seqs = torch.cat(
             (seqs[prev_word_inds], next_word_inds.unsqueeze(1)), dim=1
         ) ##(s, step+1)
+
+        seqs_alpha = torch.cat(
+            (seqs_alpha[prev_word_inds], 
+            alpha[prev_word_inds].view(alpha.shape[0], 1, enc_image_size, enc_image_size)
+            ), dim=1
+        ) ##(s, step+1, enc_image_size, enc_image_size)
         
         # Determine which sequences have not reached the end token
         incomplete_inds = [ind for ind, next_word in enumerate(next_word_inds) if next_word != decoder.stop_tok_idx]
@@ -105,16 +113,8 @@ def beam_caption(image, encoder, decoder, string2int,
         # set aside complete sequences
         if len(complete_inds) > 0:
             complete_seqs.extend(seqs[complete_inds].tolist())
+            complete_seqs_alpha.extend(seqs_alpha[complete_inds])
             complete_seq_scores.extend(top_k_scores[complete_inds])
-
-        # store alphas for completed sequence steps
-        if step == 1: ##first step, alphas are same for all beam_size dimensions since the decoder saw the same <start> token for each beam
-            alphas.append(alpha[0].view(-1))
-        else: ##otherwise, save the alpha corresponding to the word that has been decided on 
-            alpha = alpha[prev_word_inds[complete_inds]]
-            #for i in alpha.size(0):
-            alphas.append(alpha.view(-1))
-
         # reduce beam size
         beam_size -= len(complete_inds)
 
@@ -122,6 +122,7 @@ def beam_caption(image, encoder, decoder, string2int,
         if beam_size==0:
             break
         seqs = seqs[incomplete_inds]
+        seqs_alpha = seqs_alpha[incomplete_inds]
         top_k_scores = top_k_scores[incomplete_inds].unsqueeze(1)
         k_prev_words = next_word_inds[incomplete_inds].unsqueeze(1)
 
@@ -130,17 +131,26 @@ def beam_caption(image, encoder, decoder, string2int,
         encoder_out = encoder_out[prev_word_inds[incomplete_inds]]
 
         # break if decoding takes too long
-        if step > 50:
+        if step > 100:
             break
         step += 1
 
     # determine the indices of the best scores and use to determine the final sequence
+    # try:
     best_i = complete_seq_scores.index(max(complete_seq_scores))
     final_seq = complete_seqs[best_i]
+    final_alpha = complete_seqs_alpha[best_i]
+    # except:
+    #     print("Error - no complete seqs")
     
     # BLEU-4 Score
     references = list() ##see NLTK bleu-4 docs - references need to be list like [[cap1word1, cap1word2, cap1word3], [cap2word1, cap2word2]] for *each* image
     hypotheses = list()  ##see NLTK bleu-4 docs - hypothesis needs to be list [hyp-word1, hyp-word2, ...] for each image
+
+    # hypothesis
+    hypotheses.extend([[string2int(w) for w in final_seq if w not in {decoder.start_tok_idx, decoder.pad_tok_idx}]])
+    bleu4 = None
+
     # references
     if captions is not None: 
         if len(captions.size())==2: ##add dimension so size = (# of captions for this image, 1, padded length of captions)
@@ -154,18 +164,15 @@ def beam_caption(image, encoder, decoder, string2int,
             )
             references.append(ref[0])
     
-    # hypothesis
-    hypotheses.extend([[string2int(w) for w in final_seq if w not in {decoder.start_tok_idx, decoder.pad_tok_idx}]])
-    # return references, hypotheses
-    assert len(references) == len(hypotheses)
+        # return references, hypotheses
+        assert len(references) == len(hypotheses)
 
-    bleu4 = None
-    with warnings.catch_warnings(): ##silence UserWarning
-        warnings.simplefilter("ignore")
-        bleu4 = corpus_bleu(hypotheses, references)
+        with warnings.catch_warnings(): ##silence UserWarning
+            warnings.simplefilter("ignore")
+            bleu4 = corpus_bleu(hypotheses, references)
 
-    caption = ' '.join([w for w in hypotheses[0] if w not in {string2int.stop_token}])
-    return caption, final_seq, bleu4, alphas
+    decoded_cap = ' '.join([w for w in hypotheses[0] if w not in {string2int.stop_token}])
+    return decoded_cap, final_seq, bleu4, final_alpha
 
 
 
