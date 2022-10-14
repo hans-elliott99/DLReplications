@@ -87,7 +87,9 @@ class AttentionDecoder(torch.nn.Module):
 
         #data specs
         self.vocab_size = len(string2int)
+        self.start_tok_idx = string2int.stoi[string2int.start_token]
         self.pad_tok_idx = string2int.stoi[string2int.pad_token]
+        self.stop_tok_idx = string2int.stoi[string2int.stop_token]
         self.n_params = sum(p.nelement() for p in self.parameters())
 
         #core model
@@ -105,17 +107,22 @@ class AttentionDecoder(torch.nn.Module):
         self.init_c = torch.nn.Linear(enc_output_dim, dec_hidden_dim, device=self.device)
         self._init_weights()
 
+
     def _init_weights(self):
         """
         Prep specific params with better weight initialization for better convergence.
         """
+        for child in self.children():
+            if isinstance(child, (torch.nn.Linear)):
+                torch.nn.init.xavier_normal_(child.weight)
         self.output_embed.weight.data.uniform_(-0.1, 0.1)
         self.fc_head.bias.data.fill_(0)
         self.fc_head.weight.data.uniform_(-0.1, 0.1)
 
-    def _init_hidden(self, encoder_output):
+    def init_hidden(self, encoder_output):
         """
-        Initalize first hidden states with the means of the encoded images
+        Initalize first hidden states with the means of the encoded images.  
+        Returns hidden, cell
         """
         mean_encoded = encoder_output.mean(dim=1)
         h = self.init_h(mean_encoded) ##(batch_size, num_pixels, dec_hidden_dim)
@@ -147,22 +154,21 @@ class AttentionDecoder(torch.nn.Module):
         
         # Output Word Embeddings
         embed = self.output_embed(sorted_caps) ##(batch_size, vocab_size, embed_dim)
-
-        # Initialize hidden states
-        hidden, cell = self._init_hidden(encoder_output=encoder_output) ##(batch_size, num_pixels, dec_hidden_dim)
         
         # Tensors to hold word prediction scores, alphas
         predictions = torch.zeros((batch_size, max(decode_lengths), self.vocab_size), device=self.device)
         alphas = torch.zeros((batch_size, max(decode_lengths), num_pixels), device=self.device)
 
+        # Initialize hidden states
+        hidden, cell = self.init_hidden(encoder_output=encoder_output) ##(batch_size, num_pixels, dec_hidden_dim)
 
-        # Decoder Recurrent Net
+        # Attention + Decoder Recurrent Net
         for t in range(max(decode_lengths)):
             # Determine effective batch size for time step t (to start it will be batch_size)
             batch_size_t = sum([dec_len > t for dec_len in decode_lengths]) ##calculate 'effective batch size' for time step t
             # Forward pass the attention network to calculate the context vector (ie, the attention weighted image encodings)
-            context_vec, alpha = self.attention.forward(encoder_output[:batch_size_t],       ##context_vec (batch_size, num_pixels, encoder_dim)
-                                                        dec_hidden=hidden[:batch_size_t])    ##
+            context_vec, alpha = self.attention(encoder_output[:batch_size_t],       ##context_vec (batch_size, num_pixels, encoder_dim)
+                                                dec_hidden=hidden[:batch_size_t])    ##
             
             # Calculate and apply a sigmoid gate (paper sec. 4.2.1) which may help the model attend
             gate = self.sigmoid(self.f_beta(hidden[:batch_size_t]))
@@ -183,4 +189,146 @@ class AttentionDecoder(torch.nn.Module):
             predictions[:batch_size_t, t, :] = logits
             alphas[:batch_size_t, t, :] = alpha
         
-        return predictions, alphas, decode_lengths, sorted_caps
+        return predictions, alphas, decode_lengths, sort_idx
+
+
+
+@torch.no_grad()
+def beam_evaluate(image, encoder, decoder, 
+                 captions=None,
+                 beam_size=1):
+    """
+    Use beam search to perform inference and caption an image. If a true caption is provided, calculate BLEU-4 Score
+
+    image: a single image tensor of shape (1, img_size, img_size, 3)\n
+    captions: optional. tensor containing all ground-truth captions associated with the single image (some datasets provide multiple caps per image).\n
+    beam_size: the number of candidate words to search over at each step of the decoding.\n
+    """
+    if len(image.size()) == 3:
+        image = image.unsqueeze(0) ##add batch dimension
+    elif len(image.size()) == 4:
+        assert image.size()[0] == 1, "Provide a single image"
+    
+    device = encoder.device
+    assert device==image.device
+
+    # ENCODE
+    encoder_out = encoder(image) ##(1, enc_image_size, enc_image_size, encoder_dim)
+    enc_image_size = encoder_out.size(1) ##14
+    encoder_dim = encoder_out.size(3) ##2048
+
+    # Flatten encoded representation
+    encoder_out = encoder_out.view(1, -1, encoder_dim) ##(1, num_pixels (14x14), encoder_dim)
+    num_pixels = encoder_out.size(1) ##enc_image_size x enc_image_size 
+
+    # Treat as having batch size of 'beam_size' - so copy encoder output beam_size times so that we have beam_size encoder_outputs
+    encoder_out = encoder_out.expand(beam_size, num_pixels, encoder_dim) ##(beam_size, num_pixels, encoder_dim)
+
+    # Storing tensors
+    ## Top k previous words at each step - fill with <sos>
+    k_prev_words = torch.LongTensor([[decoder.start_tok_idx]] * beam_size).to(device) ##(beam_size, 1)
+    ## Top k sequences - fill with <sos>
+    seqs = k_prev_words
+    ## Top k sequence scores - fill with 0s
+    top_k_scores = torch.zeros(beam_size, 1).to(device) ##(beam_size, 1)
+
+    ## Store completed sequences and score
+    complete_seqs = list()
+    complete_seq_scores = list()
+
+    # DECODE 
+    step = 1
+    hidden, cell = decoder.init_hidden(encoder_out)
+
+    # s <= beam_size (starts as beam_size, decreases as captions finish)
+    while True:
+        # Produce beam_size (k) embeddings based on the previous word
+        embeds = decoder.output_embed(k_prev_words).squeeze(1) ##(s, dec_embed_dim)
+        # Calculate the context vector and gate it
+        context_vec, _ = decoder.attention(encoder_out, hidden) ##(s, encoder_dim)
+        gate = decoder.sigmoid(decoder.f_beta(hidden))
+        context_vec = context_vec * gate
+        # Update RNN hidden and cell states and produce logits
+        hidden, cell = decoder.rnn_decode(
+            torch.cat((embeds, context_vec), dim=1),
+            (hidden, cell)
+        ) ##(s, dec_hidden_dim)
+        logits = decoder.fc_head(hidden) ##(s, vocab_size)
+        # Log Softmax the logits
+        scores = torch.nn.functional.log_softmax(logits, dim=1) ##(s, vocab_size)
+
+        # Add scores to top_k_scores to produce an additive scores
+        scores = top_k_scores.expand_as(scores) + scores
+
+        # For step 1, all k points will have the same score since k_prev_words are all <start>
+        # Otherwise, need to unroll the scores and find their unrolled top scores + indices
+        if step == 1:
+            top_k_scores, top_k_words = scores[0].topk(k=beam_size, dim=0, largest=True, sorted=True) ##(s),(s)
+        else:
+            top_k_scores, top_k_words = scores.view(-1).topk(k=beam_size, dim=0, largest=True, sorted=True)  ##(s),(s)
+
+        # Convert unrolled indices to actual indices by dividing by the vocab size
+        prev_word_inds = (top_k_words / decoder.vocab_size).long() ##(s)
+        next_word_inds = top_k_words % decoder.vocab_size ##(s)
+
+        # Add new words to sequence (which is a LongTensor)
+        seqs = torch.cat(
+            (seqs[prev_word_inds], next_word_inds.unsqueeze(1)), dim=1
+        ) ##(s, step+1)
+        
+        # Determine which sequences have not reached the end token
+        incomplete_inds = [ind for ind, next_word in enumerate(next_word_inds) if next_word != decoder.stop_tok_idx]
+        complete_inds = list(set(range(len(next_word_inds))) - set(incomplete_inds)) ##convert to sets for speed, then back to list
+        complete_inds=incomplete_inds ##!
+        # set aside complete sequences
+        # if len(complete_seqs) > 0: ##!
+        complete_seqs.extend(seqs[complete_inds].tolist())
+        complete_seq_scores.extend(top_k_scores[complete_inds])
+        # reduce beam size
+        beam_size -= len(complete_inds)
+
+        # proceed with incomplete sequences unless all are complete
+        if beam_size==0:
+            break
+        seqs = seqs[incomplete_inds]
+        top_k_scores = top_k_scores[incomplete_inds].unsqueeze(1)
+        k_prev_words = next_word_inds[incomplete_inds].unsqueeze(1)
+
+        hidden = hidden[prev_word_inds[incomplete_inds]]
+        cell = cell[prev_word_inds[incomplete_inds]]
+        encoder_out = encoder_out[prev_word_inds[incomplete_inds]]
+
+        # break if decoding takes too long
+        if step > 50:
+            break
+        step += 1
+
+    # determine the indices of the best scores and use to determine the final sequence
+    best_i = complete_seq_scores.index(max(complete_seq_scores))
+    final_seq = complete_seqs[best_i]
+
+    # BLEU-4 Score
+    ## references
+    reference=None
+    if captions is not None: 
+        reference = captions.tolist()
+        reference = list(
+            map(lambda cap: [w for w in cap if w not in {decoder.start_tok_idx, decoder.stop_tok_idx, decoder.pad_tok_idx}],
+                reference)
+        )
+    
+    ## hypothesis
+    hypothesis = [w for w in final_seq if w not in {decoder.start_tok_idx, decoder.stop_tok_idx, decoder.pad_tok_idx}]
+
+    return hypothesis, reference
+
+
+        
+# from nltk.translate.bleu_score import corpus_bleu
+# bleu4 = corpus_bleu(references, hypotheses)
+    
+
+
+
+
+

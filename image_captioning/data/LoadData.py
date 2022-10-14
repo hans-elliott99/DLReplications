@@ -47,17 +47,20 @@ class String2Int:
 
 
 class ImageCaptionDataset(torch.utils.data.Dataset):
-    def __init__(self, X_paths, y_labels, string2int:String2Int, transforms=None): #device?
+    def __init__(self, X_paths, y_labels, split, string2int:String2Int, transforms=None, augmentation=False): #device?
         """
         X_paths = ordered list of image paths\n
         y_labels = ordered list of image captions\n
+        split = 'train', 'valid', or 'test'
         string2int = a String2Int object or a python dict containing 'stoi', 'start_token', 'stop_token', 'pad_token', and 'remove_punct'\n 
         transform = transformation/preprocessing function applied to images\n
         """
 
         self.X_paths = X_paths
         self.y_labels = y_labels
+        self.split = split
         self.transforms = transforms
+        self.augment = augmentation
         self.most_words = len(max([lab.split() for lab in y_labels], key=len)) + 2 ##for the start/stop tokens
         
         self.string2int = string2int
@@ -74,18 +77,25 @@ class ImageCaptionDataset(torch.utils.data.Dataset):
         img_path = self.X_paths[idx]
         img = torchvision.io.read_image(img_path, mode=torchvision.io.ImageReadMode.RGB) ##read image and convert to RGB if not
         img = self._prep_image(img.float(), transforms=self.transforms)
+        if self.split.lower()=='train':
+            img = self._augment_image(img, self.augment)
 
         # LABEL
         str_label = self.y_labels[idx]
         str_label = ''.join([c for c in str_label if c not in self.string2int.remove_punct])
         int_label = [self.start_tok_idx] + [self.string2int.stoi[s] for s in str_label.split()] + [self.stop_tok_idx]
+        padded_label = torch.tensor(self._pad_label(int_label))
+        all_captions_per_image = padded_label ##only one cap per image in this dataset
 
-        return img, torch.tensor(self._pad_label(int_label))
+        return img, padded_label, all_captions_per_image
 
     def _prep_image(self, img_tensor, transforms=None):
         img_tensor *= 1.0/255
         if transforms is not None:
             img_tensor = transforms(img_tensor)
+        return img_tensor
+
+    def _augment_image(self, img_tensor, augment):
         return img_tensor
 
     def _pad_label(self, int_label):
