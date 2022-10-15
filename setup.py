@@ -9,7 +9,7 @@ setup(
     # Needed to actually package something
     packages=['image_captioning'],
     # Needed for dependencies
-    install_requires=['torch', 'numpy'],
+    install_requires=['torch', 'torchvision', 'numpy', 'nltk', 'opencv_python_headless', 'Pillow', 'scikit_image'],
     # *strongly* suggested for sharing
     version='0.1',
     # The license can be anything you like
