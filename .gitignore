@@ -5,4 +5,5 @@ image_captioning/data/metadata/
 image_captioning/data/train_images/
 image_captioning/data/valid_images/
 
-
+image_captioning/checkpoints/
+image_captioning/logs/

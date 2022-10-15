@@ -2,6 +2,10 @@ import torch
 import torchvision
 import json
 
+##TODO: Could load images from URLs by modifying the dataset class... then I could utilize all images without taking too much disk space
+## would be slower to train and not all images work so hard to know exactly what your dataset looks like
+## But could run all urls once to determine the batch of valid urls
+
 def load_meta(path):
     """Load in 'train' or 'valid' metadata. Metadata includes paths to images and their captions."""
     with open(path, 'r') as f:

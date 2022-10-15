@@ -17,24 +17,36 @@ class RunningMean:
         self.mean = self.sum / self.count
 
 
+# class MetricLog:
+#     def __init__(self, filepath, reset=True) -> None:
+#         self.file = open(filepath, "w+")
+#         if reset:
+#             self.reset()
+    
+#     def log(self, epoch, value):
+#         """Append to log file"""
+#         self.file.write(f"{epoch}; {value}\n")
+
+#     def reset(self):
+#         """Empty the log file if it already exists."""
+#         self.file.truncate(0)
+
+#     def close(self):
+#         self.file.close()
 class MetricLog:
     def __init__(self, filepath, reset=True) -> None:
-        self.file = open(filepath, "w+")
+        self.file = filepath
         if reset:
             self.reset()
     
-    # @classmethod
     def log(self, epoch, value):
         """Append to log file"""
-        self.file.write(f"{epoch}; {value}\n")
+        with open(self.file, 'a+') as f:
+            f.write(f"{epoch}; {value}\n")
 
-    # @classmethod
     def reset(self):
         """Empty the log file if it already exists."""
-        self.file.truncate(0)
-
-    def close(self):
-        self.file.close()
+        open(self.file, 'w').close()
 
 def LoadMetricLog(filepath):
     values = []

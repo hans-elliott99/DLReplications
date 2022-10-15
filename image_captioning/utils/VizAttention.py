@@ -7,8 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import numpy as np
 
-from data.LoadData import String2Int
-
+from image_captioning.data.LoadData import String2Int
 
 def plot_training(image, label, alphas, string2int:String2Int, smooth=True, im_size=14):
     """

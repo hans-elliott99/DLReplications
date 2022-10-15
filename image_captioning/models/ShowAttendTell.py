@@ -2,28 +2,38 @@ import torch
 import torchvision
 from typing import Type
 
+
+##TODO: Remove devices, and just use model.to(device) in training script
+##torch modules already have a device attribute, so adding another gets too confusing
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 class Encoder(torch.nn.Module):
-    def __init__(self, encoded_image_size=14, device=torch.device("cpu")):
+    def __init__(self, weights="pretrained", encoded_image_size=14):
         super(Encoder, self).__init__()
-        self.device = device
+        self.weights = weights
         self._init_resnet()  ##load resnet model and prep
         self.finetune(False) ##init model as non-trainable
 
         # Resize image to fixed size to allow input images of variable sizes
         ## (encoded 'images' will be of size 14x14)
-        self.adaptive_pool = torch.nn.AdaptiveAvgPool2d((encoded_image_size, encoded_image_size)).to(self.device)
+        self.adaptive_pool = torch.nn.AdaptiveAvgPool2d((encoded_image_size, encoded_image_size))
         self.n_params = sum(p.nelement() for p in self.parameters())
 
     def _init_resnet(self): ##add similair method to load any different torchvision model if desired
         # Load weights
-        res_weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V2
+        if self.weights=="pretrained":
+            trained_weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V2
+            self.transforms = trained_weights.transforms()
+        elif self.weights=="random":
+            trained_weights = None
+            self.transforms = None
         # Save preprocessing info
-        self.transforms = res_weights.transforms()
         # Load model
-        resnet = torchvision.models.resnet50(weights=res_weights)
+        resnet = torchvision.models.resnet50(weights=trained_weights)
         # Remove model head
         layers = list(resnet.children())[:-2]
-        self.resnet = torch.nn.Sequential(*layers).to(self.device)
+        self.resnet = torch.nn.Sequential(*layers)
     
     def forward(self, images):
         out = self.resnet(images)   ##(batch, 2048, image_size/32, image_size/32)
@@ -44,15 +54,19 @@ class Encoder(torch.nn.Module):
 
 
 class SoftAttention(torch.nn.Module):
-    """
-    Inspired by Bahdanau et al (2015) - see pg. 12 for key details
-    """
-    def __init__(self, enc_output_dim, dec_hidden_dim, attention_dim, activ_fn=torch.nn.ReLU, device=torch.device("cpu")):
+    def __init__(self, enc_output_dim, dec_hidden_dim, attention_dim, activ_fn=torch.nn.ReLU):
+        """
+        Implement soft attention as inspired by Bahdanau et al (2014) - see pg. 12 for key details.  
+
+        enc_output_dim = size of the encoder's output.  
+        dec_hidden_dim = size of the decoder's hidden state
+        attention_dim = size of the attention network (number of neurons )
+
+        """
         super(SoftAttention, self).__init__()
-        self.device = device
-        self.enc2att = torch.nn.Linear(enc_output_dim, attention_dim, bias=False, device=self.device)    #map from encoded images to attention    
-        self.hidden2att = torch.nn.Linear(dec_hidden_dim, attention_dim, bias=False, device=self.device) #map from decoder hidden state to attention
-        self.att = torch.nn.Linear(attention_dim, 1, device=self.device)
+        self.enc2att = torch.nn.Linear(enc_output_dim, attention_dim, bias=False)    #map from encoded images to attention    
+        self.hidden2att = torch.nn.Linear(dec_hidden_dim, attention_dim, bias=False) #map from decoder hidden state to attention
+        self.att = torch.nn.Linear(attention_dim, 1)
 
         self.activ_fn = activ_fn() ##paper uses tanh
         self.softmax = torch.nn.Softmax(dim=1)
@@ -67,18 +81,16 @@ class SoftAttention(torch.nn.Module):
         return context, alpha
 
 
-        
+
 class AttentionDecoder(torch.nn.Module):
     def __init__(self, dec_embed_dim, dec_hidden_dim, attention_dim, string2int:Type[object],
-                enc_output_dim=2048, activ_fn=torch.nn.ReLU, dropout=0.0,
-                device=torch.device("cpu")
+                enc_output_dim=2048, activ_fn=torch.nn.ReLU, dropout=0.0
     ) -> None:
         """
         
-        enc_output_dim: the number of feature maps produced by the encoder (2048 if ResNet)\n
+        enc_output_dim = the number of feature maps produced by the encoder (2048 if ResNet)\n
         """
         super(AttentionDecoder, self).__init__()
-        self.device = device
         #params
         self.embed_dim = dec_embed_dim
         self.dec_hidden_dim = dec_hidden_dim
@@ -90,23 +102,23 @@ class AttentionDecoder(torch.nn.Module):
         self.start_tok_idx = string2int.stoi[string2int.start_token]
         self.pad_tok_idx = string2int.stoi[string2int.pad_token]
         self.stop_tok_idx = string2int.stoi[string2int.stop_token]
-        self.n_params = sum(p.nelement() for p in self.parameters())
 
         #core model
         self.attention = SoftAttention(enc_output_dim=enc_output_dim, dec_hidden_dim=dec_hidden_dim,
-                                        attention_dim=attention_dim, activ_fn=activ_fn, device=self.device)
-        self.output_embed = torch.nn.Embedding(self.vocab_size, self.embed_dim, device=self.device) #word embeddings
+                                        attention_dim=attention_dim, activ_fn=activ_fn)
+        self.output_embed = torch.nn.Embedding(self.vocab_size, self.embed_dim) #word embeddings
         self.dropout = torch.nn.Dropout(p=dropout)
-        self.rnn_decode = torch.nn.LSTMCell(self.embed_dim+enc_output_dim, dec_hidden_dim, bias=True, device=self.device)
-        self.f_beta = torch.nn.Linear(dec_hidden_dim, enc_output_dim, device=self.device) #layer for sigmoid gate post-rnn
+        self.rnn_decode = torch.nn.LSTMCell(self.embed_dim+enc_output_dim, dec_hidden_dim, bias=True)
+        self.f_beta = torch.nn.Linear(dec_hidden_dim, enc_output_dim) #layer for sigmoid gate post-rnn
         self.sigmoid = torch.nn.Sigmoid()
-        self.fc_head = torch.nn.Linear(dec_hidden_dim, self.vocab_size, device=self.device) #layer to compute probability dist over vocab
+        self.fc_head = torch.nn.Linear(dec_hidden_dim, self.vocab_size) #layer to compute probability dist over vocab
 
         #hidden state + weight init
-        self.init_h = torch.nn.Linear(enc_output_dim, dec_hidden_dim, device=self.device) ##learnable layers for initializing hidden states
-        self.init_c = torch.nn.Linear(enc_output_dim, dec_hidden_dim, device=self.device)
+        self.init_h = torch.nn.Linear(enc_output_dim, dec_hidden_dim) ##learnable layers for initializing hidden states
+        self.init_c = torch.nn.Linear(enc_output_dim, dec_hidden_dim)
         self._init_weights()
 
+        self.n_params = sum(p.nelement() for p in self.parameters())
 
     def _init_weights(self):
         """
@@ -131,7 +143,6 @@ class AttentionDecoder(torch.nn.Module):
 
 
     def forward(self, encoder_output, y_encodings):
-        self.device = torch.device("cpu")
         batch_size = encoder_output.size(0)   
         encoder_dim = encoder_output.size(-1) ##number of feature maps
         caption_dim = y_encodings.size(1)
@@ -143,7 +154,7 @@ class AttentionDecoder(torch.nn.Module):
         # Sort input data by decreasing length to avoid using pad tokens (we can then use a simple index method to continue decode the longest captions)
         caption_lengths = torch.tensor(
             [len([w.item() for w in caption if w != self.pad_tok_idx]) for caption in y_encodings],
-            device=self.device
+            device=device
             )
         caption_lengths, sort_idx = caption_lengths.sort(dim=0, descending=True)
         encoder_output = encoder_output[sort_idx]
@@ -156,8 +167,8 @@ class AttentionDecoder(torch.nn.Module):
         embed = self.output_embed(sorted_caps) ##(batch_size, vocab_size, embed_dim)
         
         # Tensors to hold word prediction scores, alphas
-        predictions = torch.zeros((batch_size, max(decode_lengths), self.vocab_size), device=self.device)
-        alphas = torch.zeros((batch_size, max(decode_lengths), num_pixels), device=self.device)
+        predictions = torch.zeros((batch_size, max(decode_lengths), self.vocab_size), device=device)
+        alphas = torch.zeros((batch_size, max(decode_lengths), num_pixels), device=device)
 
         # Initialize hidden states
         hidden, cell = self.init_hidden(encoder_output=encoder_output) ##(batch_size, num_pixels, dec_hidden_dim)
