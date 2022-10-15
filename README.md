@@ -1,4 +1,4 @@
-# dl-replications
+# DLReplications
 Replications & offshoots of deep learning papers
 
 `image_captioning/`  
