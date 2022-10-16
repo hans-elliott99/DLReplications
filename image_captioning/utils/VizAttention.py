@@ -72,15 +72,16 @@ def plot_predicted(image, pred_seq, alphas, string2int, smooth=True, im_size=14)
         plt.text(x=0, y=1, s=string2int(pred_seq[t]), color='black', backgroundcolor='white', fontsize=12)
         plt.imshow(image)
 
-        if t > 0:
-            if smooth:
-                alpha = skimage.transform.pyramid_expand(alphas[t-1].cpu().numpy().reshape(im_size,im_size), upscale=24, sigma=8)
-            else:
-                alpha = skimage.transform.resize(alphas[t-1].cpu().numpy(), [im_size*24, im_size*24])
-            opacity=0.7
+        if smooth:
+            alpha = skimage.transform.pyramid_expand(alphas[t].cpu().numpy().reshape(im_size,im_size), upscale=24, sigma=8)
         else:
-            alpha = np.ones((im_size*24, im_size*24, 1))
-            opacity=0.0
+            alpha = skimage.transform.resize(alphas[t].cpu().numpy(), [im_size*24, im_size*24])
+        opacity=0.7
+
+        if t==0:
+            opacity=0
+        else:
+            opacity=0.7
         plt.imshow(alpha, alpha=opacity)
         plt.set_cmap(cm.Greys_r)
         plt.axis('off')

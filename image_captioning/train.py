@@ -27,7 +27,7 @@ def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
 
     # IMPORT DATA ---
     train_paths, train_labels = Xy_train[0], Xy_train[1]
-    valid_paths, valid_labels = Xy_train[0], Xy_train[1]
+    valid_paths, valid_labels = Xy_valid[0], Xy_valid[1]
     stoi_map = String2Int(train_labels+valid_labels,
                             start_token=config['start_token'], 
                             stop_token=config['stop_token'], 
@@ -366,7 +366,7 @@ if __name__ == '__main__':
     # SAVE_BEST, SAVE_EVERY...
 
     if torch.cuda.is_available() != REQUIRE_CUDA:
-        sys.exit(f"gpu not found - torch.cuda.is_available() = {torch.cuda.is_available()}")
+        sys.exit(f"gpu not found. torch.cuda.is_available() = {torch.cuda.is_available()}")
     if LOG_CONSOLE:
         sys.stdout = open(os.path.abspath('./logs/console-output.txt'), 'w')
 
