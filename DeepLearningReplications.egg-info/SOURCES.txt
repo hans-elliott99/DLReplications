@@ -1,0 +1,10 @@
+README.md
+setup.py
+DeepLearningReplications.egg-info/PKG-INFO
+DeepLearningReplications.egg-info/SOURCES.txt
+DeepLearningReplications.egg-info/dependency_links.txt
+DeepLearningReplications.egg-info/requires.txt
+DeepLearningReplications.egg-info/top_level.txt
+image_captioning/__init__.py
+image_captioning/temp.py
+image_captioning/train.py

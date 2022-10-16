@@ -1,0 +1,7 @@
+torch
+torchvision
+numpy
+nltk
+opencv_python_headless
+Pillow
+scikit_image
