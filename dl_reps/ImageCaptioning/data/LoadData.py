@@ -117,7 +117,7 @@ class ImageCaptionDataset(torch.utils.data.Dataset):
         
         # LABEL
         str_label = self.y_labels[idx]
-        str_label = ''.join([c for c in str_label if c not in self.string2int.remove_punct])
+        str_label = ''.join([c for c in str_label.lower() if c not in self.string2int.remove_punct])
         int_label = [self.start_tok_idx] + [self.string2int.stoi[s] for s in str_label.split()] + [self.stop_tok_idx]
         padded_label = torch.tensor(self._pad_label(int_label))
         all_captions_per_image = padded_label ##only one cap per image in this dataset

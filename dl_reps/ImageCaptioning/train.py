@@ -1,7 +1,9 @@
 #!/usr/bin/python
 
+from tkinter import S
 import torch
 from nltk.translate.bleu_score import corpus_bleu
+import wandb
 
 import time
 import datetime
@@ -15,7 +17,10 @@ from .models import ShowAttendTell
 from .utils import metrics, SaveModel
 
 def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
-              samples=None, log_path=None, modelsave_path=None, log_console=False, batch_print_freq=40):
+              log_path=None, modelsave_path=None, batch_print_freq=40, log_wandb=False):
+    """
+    Train and eval model for config['epochs'] epochs.
+    """
 
     if log_path is not None:
         loss_log = metrics.MetricLog(os.path.join(log_path,"losses.txt"), reset=True)
@@ -57,19 +62,19 @@ def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
     print(
         f"Vocab Size = {config['vocab_size'] :,}\t"
         f"Model Params = {encoder.n_params + decoder.n_params :,}\t\t"
-        f"Training Samples = {len(train_paths[:samples]) :,}\t"
-        f"Valid Samples = {len(valid_paths[:samples]) :,}"
+        f"Training Samples = {len(train_paths) :,}\t"
+        f"Valid Samples = {len(valid_paths) :,}"
     )
 
     # DATASETS+LOADERS ---
-    train_dataset = ImageCaptionDataset(X_paths=train_paths[:samples],
-                                        y_labels=train_labels[:samples],
+    train_dataset = ImageCaptionDataset(X_paths=train_paths,
+                                        y_labels=train_labels,
                                         string2int=stoi_map,
                                         transforms=encoder.transforms, ##extracted from the resnet module loaded from torchvision
                                         augmentation=None
                                         )
-    valid_dataset = ImageCaptionDataset(X_paths=valid_paths[:samples], 
-                                        y_labels=valid_labels[:samples],
+    valid_dataset = ImageCaptionDataset(X_paths=valid_paths, 
+                                        y_labels=valid_labels,
                                         string2int=stoi_map,
                                         transforms=encoder.transforms
                                         )
@@ -96,7 +101,16 @@ def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
     )
 
     gpu = GPUtil.getGPUs()[0]
-    # EPOCH LOOP ---
+
+    # wandb
+    if log_wandb:
+        try:
+            wandb.watch(encoder, log='all', log_freq=40, idx=1)
+            wandb.watch(decoder, log='all', log_freq=40, idx=1)
+        except Exception as e:
+            print(e, "Ensure wandb.init() has been called prior to training.")
+
+    # -*-*--EPOCH LOOP --*-*-
     for epoch in range(config['epochs']):
         
         print(f"EPOCH {epoch+1}/{config['epochs']}")
@@ -120,7 +134,7 @@ def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
                                             encoder, decoder,
                                             criterion, stoi_map,
                                             config, device,
-                                            epoch
+                                            epoch, log_wandb
                                         )
         
         if log_path is not None:
@@ -129,6 +143,15 @@ def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
             val_loss_log.log(epoch, val_loss.mean)
             val_top5acc_log.log(epoch, val_top5acc.mean)
             bleu4_log.log(epoch, bleu4)
+
+        if log_wandb:
+            wandb.log({
+                "loss" : train_loss.mean,
+                "val_loss" : val_loss.mean,
+                "top5acc" : train_top5acc.mean,
+                "val_top5acc" : val_top5acc.mean,
+                "val_bleu4" : bleu4
+                })
 
         print(
             f'[Epoch {epoch+1} Final] (et {time.time()-start :.3f}s):\t'
@@ -230,7 +253,7 @@ def batched_train(train_dataloader, encoder, decoder, enc_optim, dec_optim, crit
     return avg_loss, avg_top5acc
 
 @torch.no_grad()
-def batched_valid(valid_dataloader, encoder, decoder, criterion, stoi_map, config, device, epoch):
+def batched_valid(valid_dataloader, encoder, decoder, criterion, stoi_map, config, device, epoch, log_wandb):
     encoder.eval()
     decoder.eval()
 
@@ -306,7 +329,11 @@ def batched_valid(valid_dataloader, encoder, decoder, criterion, stoi_map, confi
     with warnings.catch_warnings(): ##silence UserWarning
         warnings.simplefilter("ignore")
         bleu4 = corpus_bleu(references, hypotheses)
+        
     return avg_loss, avg_top5acc, bleu4
+
+        
+
 
 def get_config_layout():
         return dict(
@@ -341,14 +368,14 @@ if __name__ == '__main__':
         dec_hidden_dim = 512, ##dim of hidden states for decoded RNN
         attention_dim = 512,  ##dim of attention network (number of neurons)
         activ_fn = torch.nn.ReLU, ##activation function used in attention network
-        dropout = 0.5,         ##dropout prob., applied to hidden state before network's classifier 
+        dropout = 0.65,         ##dropout prob., applied to hidden state before network's classifier 
         enc_finetune = True, ##TODO: if false, enc optimizer gets empty list of params which raises an error so need to implement ifelse
 
         # Training Params
         workers = 1,      ##cpu workers for data loading
         epochs = 100,
         batch_size = 12,
-        encoder_lr = 2e-4,
+        encoder_lr = 1e-4,
         decoder_lr = 4e-4,
 
         # Data Params
@@ -364,21 +391,22 @@ if __name__ == '__main__':
     BATCH_PRINT_FREQ = 40  ##each epoch, print every n batches
     REQUIRE_CUDA = True    ##sometimes my pytorch doesn't find the gpu, do i still want to run the script?
     LOG_CONSOLE = True     ##send console output to a log file instead of the console?
-    LOG_PATH = "./logs"
-    MODEL_PATH = "./checkpoints"
+    LOG_PATH = "./ImageCaptioning/logs"
+    MODEL_PATH = "./ImageCaptioning/checkpoints"
     # SAVE_BEST, SAVE_EVERY...
 
     if torch.cuda.is_available() != REQUIRE_CUDA:
         sys.exit(f"gpu not found. torch.cuda.is_available() = {torch.cuda.is_available()}")
     if LOG_CONSOLE:
-        sys.stdout = open(os.path.abspath('./logs/console-output.txt'), 'w')
+        sys.stdout = open(os.path.abspath(os.path.join(LOG_PATH, 'console-output.txt')), 'w')
 
-    train_meta = load_meta("./data/metadata/train_meta.json")
-    valid_meta = load_meta('./data/metadata/valid_meta.json')
-    train_paths = ['./data'+path for path in train_meta['paths']]
-    train_labels = train_meta['labels']
-    valid_paths = ['./data'+path for path in valid_meta['paths']]
-    valid_labels = train_meta['labels']
+    train_meta = load_meta("./ImageCaptioning/data/metadata/train_meta.json")
+    train_paths = ['./ImageCaptioning/data'+path for path in train_meta['paths']][:SAMPLES]
+    train_labels = train_meta['labels'][:SAMPLES]
+
+    valid_meta = load_meta('./ImageCaptioning/data/metadata/valid_meta.json')
+    valid_paths = ['./ImageCaptioning/data'+path for path in valid_meta['paths']][:SAMPLES]
+    valid_labels = valid_meta['labels'][:SAMPLES]
 
     print(f"Date Time: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
     print(f"device = {DEVICE}\n")
@@ -389,11 +417,11 @@ if __name__ == '__main__':
             Xy_valid=(valid_paths, valid_labels),
             config=config,
             device=DEVICE,
-            samples=SAMPLES,  
             log_path=LOG_PATH,
             modelsave_path=MODEL_PATH,
             log_console=LOG_CONSOLE,
-            batch_print_freq=BATCH_PRINT_FREQ
+            batch_print_freq=BATCH_PRINT_FREQ,
+            log_wandb=False
         )
              
     except:
