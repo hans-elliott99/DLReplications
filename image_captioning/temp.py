@@ -1,1 +1,1 @@
-from image_captioning.data.LoadData import load_meta
+from .data.LoadData import load_meta
