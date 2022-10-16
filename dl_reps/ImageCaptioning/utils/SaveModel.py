@@ -2,7 +2,7 @@ import torch
 import os
 
 def save_checkpoint(out_dir, config, epoch, score, 
-                    encoder, decoder, encoder_optimizer, decoder_optimizer, 
+                    encoder_sd, decoder_sd, encoder_optimizer_sd, decoder_optimizer_sd, 
                     is_best=False, filename='checkpoint'):
     """
     Save model checkpoint.
@@ -12,15 +12,16 @@ def save_checkpoint(out_dir, config, epoch, score,
         'epoch':epoch,
         'score':score,
         'config':config,
-        'encoder':encoder,
-        'decoder':decoder,
-        'encoder_optimizer':encoder_optimizer,
-        'decoder_optimizer':decoder_optimizer
+        'encoder_state':encoder_sd,
+        'decoder_state':decoder_sd,
+        'encoder_optimizer_state':encoder_optimizer_sd,
+        'decoder_optimizer_state':decoder_optimizer_sd
     }
     filename = f'{filename}.pth.tar'
     if is_best:
         filename = 'best_'+filename
     torch.save(state, os.path.join(out_dir, filename))
+
 
 
 def load_checkpoint(filepath):

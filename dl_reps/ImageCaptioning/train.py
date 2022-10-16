@@ -177,8 +177,8 @@ def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
                 os.path.abspath(modelsave_path),
                 config,
                 epoch, bleu4,
-                encoder, decoder,
-                enc_optimizer, dec_optimizer,
+                encoder.state_dict(), decoder.state_dict(),
+                enc_optimizer.state_dict(), dec_optimizer.state_dict(),
                 is_best=is_bleu_best,
                 filename=f"mod_{config['epochs']}ep"
             )
@@ -329,7 +329,7 @@ def batched_valid(valid_dataloader, encoder, decoder, criterion, stoi_map, confi
     with warnings.catch_warnings(): ##silence UserWarning
         warnings.simplefilter("ignore")
         bleu4 = corpus_bleu(references, hypotheses)
-        
+
     return avg_loss, avg_top5acc, bleu4
 
         
@@ -373,7 +373,7 @@ if __name__ == '__main__':
 
         # Training Params
         workers = 1,      ##cpu workers for data loading
-        epochs = 100,
+        epochs = 1,
         batch_size = 12,
         encoder_lr = 1e-4,
         decoder_lr = 4e-4,
@@ -387,7 +387,7 @@ if __name__ == '__main__':
 
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     config['device'] = DEVICE
-    SAMPLES = None         ##set to an int to use just SAMPLES training/valid examples (to speed up times)
+    SAMPLES = 100          ##set to an int to use just SAMPLES training/valid examples (to speed up times)
     BATCH_PRINT_FREQ = 40  ##each epoch, print every n batches
     REQUIRE_CUDA = True    ##sometimes my pytorch doesn't find the gpu, do i still want to run the script?
     LOG_CONSOLE = True     ##send console output to a log file instead of the console?
@@ -419,7 +419,6 @@ if __name__ == '__main__':
             device=DEVICE,
             log_path=LOG_PATH,
             modelsave_path=MODEL_PATH,
-            log_console=LOG_CONSOLE,
             batch_print_freq=BATCH_PRINT_FREQ,
             log_wandb=False
         )
