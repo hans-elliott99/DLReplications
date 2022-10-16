@@ -59,6 +59,7 @@ def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
     assert (next(encoder.parameters()).is_cuda), f"ensure encoder is on {device}"
     assert (next(decoder.parameters()).is_cuda), f"ensure decoder is on {device}"
 
+
     print(
         f"Vocab Size = {config['vocab_size'] :,}\t"
         f"Model Params = {encoder.n_params + decoder.n_params :,}\t\t"
@@ -367,7 +368,7 @@ if __name__ == '__main__':
         dec_embed_dim = 512,  ##dimension of caption word embeddings
         dec_hidden_dim = 512, ##dim of hidden states for decoded RNN
         attention_dim = 512,  ##dim of attention network (number of neurons)
-        activ_fn = torch.nn.ReLU, ##activation function used in attention network
+        activ_fn = 'relu',    ##activation function used in attention network, relu or tanh for now
         dropout = 0.65,         ##dropout prob., applied to hidden state before network's classifier 
         enc_finetune = True, ##TODO: if false, enc optimizer gets empty list of params which raises an error so need to implement ifelse
 
@@ -386,7 +387,6 @@ if __name__ == '__main__':
     )
 
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    config['device'] = DEVICE
     SAMPLES = 100          ##set to an int to use just SAMPLES training/valid examples (to speed up times)
     BATCH_PRINT_FREQ = 40  ##each epoch, print every n batches
     REQUIRE_CUDA = True    ##sometimes my pytorch doesn't find the gpu, do i still want to run the script?

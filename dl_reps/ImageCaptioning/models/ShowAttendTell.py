@@ -80,7 +80,7 @@ class SoftAttention(torch.nn.Module):
 
 class AttentionDecoder(torch.nn.Module):
     def __init__(self, dec_embed_dim, dec_hidden_dim, attention_dim, string2int:Type[object],
-                enc_output_dim=2048, activ_fn=torch.nn.ReLU, dropout=0.0
+                enc_output_dim=2048, activ_fn:str='relu', dropout=0.0
     ) -> None:
         """
         
@@ -99,9 +99,14 @@ class AttentionDecoder(torch.nn.Module):
         self.pad_tok_idx = string2int.stoi[string2int.pad_token]
         self.stop_tok_idx = string2int.stoi[string2int.stop_token]
 
+        if activ_fn.lower()=='relu':
+            activ = torch.nn.ReLU
+        if activ_fn.lower()=='tanh':
+            activ = torch.nn.Tanh
+
         #core model
         self.attention = SoftAttention(enc_output_dim=enc_output_dim, dec_hidden_dim=dec_hidden_dim,
-                                        attention_dim=attention_dim, activ_fn=activ_fn)
+                                        attention_dim=attention_dim, activ_fn=activ)
         self.output_embed = torch.nn.Embedding(self.vocab_size, self.embed_dim) #word embeddings
         self.dropout = torch.nn.Dropout(p=dropout)
         self.rnn_decode = torch.nn.LSTMCell(self.embed_dim+enc_output_dim, dec_hidden_dim, bias=True)
