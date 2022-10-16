@@ -7,9 +7,9 @@ import time, datetime, os, sys
 import warnings, traceback 
 import GPUtil
 
-from data.LoadData import ImageCaptionDataset, String2Int, load_meta
-from models import ShowAttendTell
-from utils import metrics, SaveModel
+from image_captioning.data.LoadData import ImageCaptionDataset, String2Int, load_meta
+from image_captioning.models import ShowAttendTell
+from image_captioning.utils import metrics, SaveModel
 
 def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
               samples=None, log_path=None, modelsave_path=None, log_console=False, batch_print_freq=40):
