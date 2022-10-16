@@ -8,7 +8,6 @@ setup(
     author_email='hanselliott61@gmail.com',
     # Needed to actually package something
     packages=find_packages(),
-    namespace_packages=['dl_reps'],
     # Needed for dependencies
     install_requires=['torch', 'torchvision', 'numpy', 'nltk', 'opencv_python_headless', 'Pillow', 'scikit_image'],
     # *strongly* suggested for sharing
