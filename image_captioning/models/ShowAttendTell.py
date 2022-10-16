@@ -2,10 +2,6 @@ import torch
 import torchvision
 from typing import Type
 
-
-##TODO: Remove devices, and just use model.to(device) in training script
-##torch modules already have a device attribute, so adding another gets too confusing
-
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class Encoder(torch.nn.Module):

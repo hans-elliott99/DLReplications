@@ -8,10 +8,8 @@ import skimage.transform
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import numpy as np
-import sys
-sys.path.append("..") # Adds higher directory to python modules path.
 
-from data.LoadData import String2Int
+from ..data.LoadData import String2Int
 
 def plot_training(image, label, alphas, string2int:String2Int, smooth=True, im_size=14):
     """
