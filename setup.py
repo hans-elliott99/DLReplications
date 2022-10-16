@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup, find_namespace_packages
 
 setup(
     # Needed to silence warnings (and to be a worthwhile package)
@@ -7,7 +7,7 @@ setup(
     author='Hans Elliott',
     author_email='hanselliott61@gmail.com',
     # Needed to actually package something
-    packages=find_packages(),
+    packages=find_namespace_packages(include=['dl_reps.*']),
     # Needed for dependencies
     install_requires=['torch', 'torchvision', 'numpy', 'nltk', 'opencv_python_headless', 'Pillow', 'scikit_image'],
     # *strongly* suggested for sharing
