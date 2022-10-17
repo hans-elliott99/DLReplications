@@ -41,7 +41,7 @@ class String2Int:
 
     def _make_mappings(self, unique_words):
         
-        stoi = {word:i+3 for i,word in enumerate(unique_words)}
+        stoi = {str(word):int(i)+3 for i, word in enumerate(unique_words)}
         stoi[self.pad_token] = 0
         stoi[self.start_token] = 1
         stoi[self.stop_token] = 2
@@ -52,6 +52,7 @@ class String2Int:
     def _from_saved(self, saved_dict):
         self.stoi = saved_dict['stoi']
         self.itos = saved_dict['itos']
+        self._convert_mapitem_types()
         self.start_token = saved_dict['start_token']
         self.stop_token = saved_dict['stop_token']
         self.pad_token = saved_dict['pad_token']
@@ -68,6 +69,11 @@ class String2Int:
             'remove_punct' : self.remove_punct
         }
     
+    def _convert_mapitem_types(self):
+        """Ensure the loaded mappings have correct form."""
+        self.stoi = {str(k) : int(v) for k,v in self.stoi.items()}
+        self.itos = {int(k) : str(v) for k,v in self.itos.items()}
+    
     def __len__(self):
         return len(self.stoi)
 
@@ -82,6 +88,9 @@ class String2Int:
                 raise ValueError
         except ValueError as e:
             print(f"ValueError: Item is of type {type(item)} and not str or int")
+
+
+
 
 class ImageCaptionDataset(torch.utils.data.Dataset):
     def __init__(self, X_paths, y_labels, string2int:String2Int, transforms=None, augmentation=None):

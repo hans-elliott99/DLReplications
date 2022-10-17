@@ -1,9 +1,9 @@
 .venv
 __pycache__
 
-dl_reps/ImageCaptioning/data/metadata/
-dl_reps/ImageCaptioning/data/train_images/
-dl_reps/ImageCaptioning/data/valid_images/
+dlrep/ImageCaptioning/data/metadata/
+dlrep/ImageCaptioning/data/train_images/
+dlrep/ImageCaptioning/data/valid_images/
 
-dl_reps/ImageCaptioning/checkpoints/
-dl_reps/ImageCaptioning/logs/
+dlrep/ImageCaptioning/checkpoints/
+dlrep/ImageCaptioning/logs/

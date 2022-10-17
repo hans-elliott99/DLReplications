@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-from tkinter import S
 import torch
 from nltk.translate.bleu_score import corpus_bleu
 import wandb
@@ -12,7 +11,7 @@ import sys
 import warnings, traceback 
 import GPUtil
 
-from .data.LoadData import ImageCaptionDataset, String2Int, load_meta
+from .data.dataload import ImageCaptionDataset, String2Int, load_meta
 from .models import ShowAttendTell
 from .utils import metrics, SaveModel
 
@@ -43,7 +42,7 @@ def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
                             remove_punct=config['remove_punct']
     )
     config['vocab_size'] = len(stoi_map)
-    config['string2int'] = stoi_map.save_dict()
+    # config['string2int'] = stoi_map.save_dict()
 
     # PREP MODEL ---
     encoder = ShowAttendTell.Encoder(weights="pretrained")
@@ -176,18 +175,15 @@ def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
             sv_st = time.time()
             SaveModel.save_checkpoint(
                 os.path.abspath(modelsave_path),
-                config,
+                config, stoi_map.save_dict(),
                 epoch, bleu4,
                 encoder.state_dict(), decoder.state_dict(),
                 enc_optimizer.state_dict(), dec_optimizer.state_dict(),
                 is_best=is_bleu_best,
-                filename=f"mod_{config['epochs']}ep"
+                filename=f"mod_{config['epochs']}eps"
             )
             epochs_since_improve = 0 ##reset to 0 if we have an improvement
             print(f"Saving new best. BLEU4 = {bleu4 :.5E}. ModelSaveTime={time.time()-sv_st :.3f}s\n")
-    # close all loggers
-    # for l in [loss_log, val_loss_log, top5acc_log, val_top5acc_log, bleu4_log]:
-    #     l.close()
 
 def batched_train(train_dataloader, encoder, decoder, enc_optim, dec_optim, criterion, config, device, gpu_obj, epoch, batch_print_freq):
     encoder.train()
@@ -374,7 +370,7 @@ if __name__ == '__main__':
 
         # Training Params
         workers = 1,      ##cpu workers for data loading
-        epochs = 1,
+        epochs = 100,
         batch_size = 12,
         encoder_lr = 1e-4,
         decoder_lr = 4e-4,
@@ -387,7 +383,7 @@ if __name__ == '__main__':
     )
 
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    SAMPLES = 100          ##set to an int to use just SAMPLES training/valid examples (to speed up times)
+    SAMPLES = None          ##set to an int to use just SAMPLES training/valid examples (to speed up times)
     BATCH_PRINT_FREQ = 40  ##each epoch, print every n batches
     REQUIRE_CUDA = True    ##sometimes my pytorch doesn't find the gpu, do i still want to run the script?
     LOG_CONSOLE = True     ##send console output to a log file instead of the console?
