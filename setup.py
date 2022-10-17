@@ -3,7 +3,7 @@ from setuptools import setup, find_namespace_packages
 setup(
     # Needed to silence warnings (and to be a worthwhile package)
     name='DeepLearningReplications',
-    url='https://github.com/hans-elliott99/dl-replications',
+    url='https://github.com/hans-elliott99/DLReplications',
     author='Hans Elliott',
     author_email='hanselliott61@gmail.com',
     # Needed to actually package something
