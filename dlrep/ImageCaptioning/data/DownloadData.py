@@ -6,6 +6,7 @@ import io
 import json
 import PIL.Image
 
+# DATA: CONCEPTUAL CAPTIONS
 
 PATH_TO_METADATA = os.path.abspath("./metadata")
 PATH_TO_DIR = os.path.abspath(".")

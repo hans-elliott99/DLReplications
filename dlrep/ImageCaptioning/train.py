@@ -13,7 +13,7 @@ import GPUtil
 
 from .data.dataload import ImageCaptionDataset, String2Int, load_meta
 from .models import ShowAttendTell
-from .utils import metrics, SaveModel
+from .utils import SaveModel, utilities
 
 def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
               log_path=None, modelsave_path=None, batch_print_freq=40, log_wandb=False):
@@ -22,11 +22,11 @@ def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
     """
 
     if log_path is not None:
-        loss_log = metrics.MetricLog(os.path.join(log_path,"losses.txt"), reset=True)
-        val_loss_log = metrics.MetricLog(os.path.join(log_path,"val_losses.txt"), reset=True)
-        top5acc_log = metrics.MetricLog(os.path.join(log_path,"top5acc.txt"), reset=True)
-        val_top5acc_log = metrics.MetricLog(os.path.join(log_path,"val_top5acc.txt"), reset=True)
-        bleu4_log = metrics.MetricLog(os.path.join(log_path, "bleu4.txt"), reset=True)
+        loss_log = utilities.MetricLog(os.path.join(log_path,"losses.txt"), reset=True)
+        val_loss_log = utilities.MetricLog(os.path.join(log_path,"val_losses.txt"), reset=True)
+        top5acc_log = utilities.MetricLog(os.path.join(log_path,"top5acc.txt"), reset=True)
+        val_top5acc_log = utilities.MetricLog(os.path.join(log_path,"val_top5acc.txt"), reset=True)
+        bleu4_log = utilities.MetricLog(os.path.join(log_path, "bleu4.txt"), reset=True)
 
     best_val_loss = 0.0
     best_val_bleu4 = 0.0
@@ -111,11 +111,16 @@ def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
             print(e, "Ensure wandb.init() has been called prior to training.")
 
     # -*-*--EPOCH LOOP --*-*-
-    for epoch in range(config['epochs']):
+    for epoch in range(0, config['epochs']):
         
         print(f"EPOCH {epoch+1}/{config['epochs']}")
         start = time.time()
-        # adjust lr...
+
+        # Adjust LR
+        if epochs_since_improve > 0 and epochs_since_improve % 8 == 0:
+            new_enclr = utilities.adjust_lr_step(enc_optimizer, 0.8)
+            new_declr = utilities.adjust_lr_step(dec_optimizer, 0.8)
+            print(f"Decaying LR. EncoderLR: {new_enclr :e}\t DecoderLR: {new_declr :e}")
 
         # Training
         train_loss, train_top5acc = batched_train(
@@ -174,25 +179,26 @@ def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
         elif modelsave_path is not None:
             sv_st = time.time()
             SaveModel.save_checkpoint(
-                os.path.abspath(modelsave_path),
-                config, stoi_map.save_dict(),
-                epoch, bleu4,
-                encoder.state_dict(), decoder.state_dict(),
-                enc_optimizer.state_dict(), dec_optimizer.state_dict(),
+                out_dir=os.path.abspath(modelsave_path),
+                config=config, string2int_dict=stoi_map.save_dict(),
+                info={'epoch':epoch, 'bleu4':bleu4}, #provide whatever info
+                encoder_sd=encoder.state_dict(), decoder_sd=decoder.state_dict(),
+                encoder_optimizer_sd=enc_optimizer.state_dict(), decoder_optimizer_sd=dec_optimizer.state_dict(),
                 is_best=is_bleu_best,
                 filename=f"mod_{config['epochs']}eps"
             )
             epochs_since_improve = 0 ##reset to 0 if we have an improvement
             print(f"Saving new best. BLEU4 = {bleu4 :.5E}. ModelSaveTime={time.time()-sv_st :.3f}s\n")
 
+
 def batched_train(train_dataloader, encoder, decoder, enc_optim, dec_optim, criterion, config, device, gpu_obj, epoch, batch_print_freq):
     encoder.train()
     decoder.train()
 
-    avg_loss = metrics.RunningMean()
-    avg_top5acc = metrics.RunningMean()
-    avg_batchtime = metrics.RunningMean()
-    avg_datatime = metrics.RunningMean()
+    avg_loss = utilities.RunningMean()
+    avg_top5acc = utilities.RunningMean()
+    avg_batchtime = utilities.RunningMean()
+    avg_datatime = utilities.RunningMean()
 
     start = time.time() ##start here before we load in data
     for i, (x, y, _) in enumerate(train_dataloader):
@@ -230,7 +236,7 @@ def batched_train(train_dataloader, encoder, decoder, enc_optim, dec_optim, crit
         dec_optim.step()
 
         # Metrics
-        top5acc = metrics.accuracy(logits, targets, topk=5)
+        top5acc = utilities.topkaccuracy(logits, targets, topk=5)
         avg_batchtime.update(time.time() - start)
         avg_top5acc.update(top5acc, n=sum(decode_lengths))
         avg_loss.update(loss.item(), n=sum(decode_lengths))
@@ -254,10 +260,10 @@ def batched_valid(valid_dataloader, encoder, decoder, criterion, stoi_map, confi
     encoder.eval()
     decoder.eval()
 
-    avg_loss = metrics.RunningMean()
-    avg_top5acc = metrics.RunningMean()
-    avg_batchtime = metrics.RunningMean()
-    avg_datatime = metrics.RunningMean()
+    avg_loss = utilities.RunningMean()
+    avg_top5acc = utilities.RunningMean()
+    avg_batchtime = utilities.RunningMean()
+    avg_datatime = utilities.RunningMean()
 
     # for blue-4 score
     references = list()
@@ -289,7 +295,7 @@ def batched_valid(valid_dataloader, encoder, decoder, criterion, stoi_map, confi
         loss = criterion(logits, targets)
         
         # Track Metrics
-        top5acc = metrics.accuracy(logits, targets, topk=5)
+        top5acc = utilities.topkaccuracy(logits, targets, topk=5)
 
         avg_batchtime.update(time.time() - start)
         avg_top5acc.update(top5acc, n=sum(decode_lengths))
@@ -370,13 +376,13 @@ if __name__ == '__main__':
 
         # Training Params
         workers = 1,      ##cpu workers for data loading
-        epochs = 100,
+        epochs = 1,
         batch_size = 12,
         encoder_lr = 1e-4,
         decoder_lr = 4e-4,
 
         # Data Params
-        remove_punct = '<>',
+        remove_punct = '<>"',
         start_token = '<sos>',
         stop_token = '<eos>',
         pad_token = '<pad>',

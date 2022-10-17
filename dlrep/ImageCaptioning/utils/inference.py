@@ -3,10 +3,7 @@ import torchvision
 from nltk.translate.bleu_score import corpus_bleu
 
 import PIL.Image
-import os, warnings
-
-import matplotlib.pyplot as plt
-
+import warnings
 
 @torch.no_grad()
 def beam_caption(image, encoder, decoder, string2int, 
@@ -173,8 +170,6 @@ def beam_caption(image, encoder, decoder, string2int,
     return decoded_cap, final_seq, bleu4, final_alpha
 
 
-
-
 def load_prep_image(image_path, transforms=None):
     """
     Load image from filepath and apply preprocessing steps.  
@@ -191,13 +186,4 @@ def _preprocess_image(img, transforms=None):
     # img *= 1.0/255 ##ToTensor scales to [0.,1.] so don't rescale manually
     if transforms is not None:
         img = transforms(img)
-    return img
-
-if __name__=='__main__':
-    image_path = os.path.abspath("./data/train_images/0.jpg")
-    img = beam_caption(image_path)
-    
-    print(torch.max(img))
-    print(img.shape)
-    plt.imshow(img.squeeze(0).permute(1, 2, 0))
-    plt.show()
+    return img    

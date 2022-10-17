@@ -1,5 +1,3 @@
-
-
 class RunningMean:
     def __init__(self) -> None:
         self.reset()
@@ -16,23 +14,6 @@ class RunningMean:
         self.sum += value*n
         self.mean = self.sum / self.count
 
-
-# class MetricLog:
-#     def __init__(self, filepath, reset=True) -> None:
-#         self.file = open(filepath, "w+")
-#         if reset:
-#             self.reset()
-    
-#     def log(self, epoch, value):
-#         """Append to log file"""
-#         self.file.write(f"{epoch}; {value}\n")
-
-#     def reset(self):
-#         """Empty the log file if it already exists."""
-#         self.file.truncate(0)
-
-#     def close(self):
-#         self.file.close()
 class MetricLog:
     def __init__(self, filepath, reset=True) -> None:
         self.file = filepath
@@ -56,9 +37,9 @@ def LoadMetricLog(filepath):
             values.append( float(value) )
     return values
 
-def accuracy(logits, targets, topk=1):
-    """
-    Compute the (top k) accuracy score given the (unpacked) logits and targets.
+
+def topkaccuracy(logits, targets, topk=1):
+    """Compute the (top k) accuracy score given the (unpacked) logits and targets.
     """
     batch_size = logits.size(0)
     _, idx = logits.topk(k=topk, dim=1, largest=True, sorted=True)
@@ -66,3 +47,25 @@ def accuracy(logits, targets, topk=1):
     correct = idx.eq( targets.view(-1, 1) ) ##bool vector, True where predicted token==correct token
     correct_total = correct.view(-1).float().sum()
     return correct_total.item() * (100.0 / batch_size)
+
+def adjust_lr_step(optimizer, reduction_factor):
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = param_group['lr'] * reduction_factor
+    
+    return optimizer.param_groups[0]['lr']
+
+
+def adjust_lr_poly(optimizer, initial_lr, iteration, max_iter):
+    """Sets the learning rate
+    # Adapted from PyTorch Imagenet example:
+    # https://github.com/pytorch/examples/blob/master/imagenet/main.py
+    """
+    lr = initial_lr * ( 1 - (iteration / max_iter)) * ( 1 - (iteration / max_iter))
+    if ( lr < 1.0e-7 ):
+      lr = 1.0e-7
+
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
+    return lr
+    
