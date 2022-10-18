@@ -3,11 +3,11 @@ from setuptools import setup, find_namespace_packages
 setup(
     # Needed to silence warnings (and to be a worthwhile package)
     name='DeepLearningReplications',
-    url='https://github.com/hans-elliott99/dl-replications',
+    url='https://github.com/hans-elliott99/DLReplications',
     author='Hans Elliott',
     author_email='hanselliott61@gmail.com',
     # Needed to actually package something
-    packages=find_namespace_packages(include=['dl_reps.*']),
+    packages=find_namespace_packages(include=['dlrep.*']),
     # Needed for dependencies
     install_requires=['torch', 'torchvision', 'numpy', 'nltk', 'opencv_python_headless', 'Pillow', 'scikit_image'],
     # *strongly* suggested for sharing
