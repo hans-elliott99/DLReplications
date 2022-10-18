@@ -11,7 +11,7 @@ import sys
 import warnings, traceback 
 import GPUtil
 
-from .data.dataload import ImageCaptionDataset, String2Int, load_meta
+from .utils.dataload import ImageCaptionDataset, String2Int, load_meta
 from .models import ShowAttendTell
 from .utils import SaveModel, utilities
 
@@ -335,7 +335,6 @@ def batched_valid(valid_dataloader, encoder, decoder, criterion, stoi_map, confi
 
     return avg_loss, avg_top5acc, bleu4
 
-        
 
 
 def get_config_layout():
@@ -367,19 +366,20 @@ if __name__ == '__main__':
     torch.cuda.empty_cache()
     config = dict(
         # Model Params
-        dec_embed_dim = 512,  ##dimension of caption word embeddings
+        dec_embed_dim = 666,  ##dimension of caption word embeddings
         dec_hidden_dim = 512, ##dim of hidden states for decoded RNN
         attention_dim = 512,  ##dim of attention network (number of neurons)
-        activ_fn = 'relu',    ##activation function used in attention network, relu or tanh for now
+        activ_fn = 'relu',      ##activation function used in attention network, relu or tanh for now
         dropout = 0.65,         ##dropout prob., applied to hidden state before network's classifier 
         enc_finetune = True, ##TODO: if false, enc optimizer gets empty list of params which raises an error so need to implement ifelse
-
+                             ##TODO: so fix that and then add ability to import a checkpoint so we can train the encoder, then finetune the decoder
+                             ##TODO: also look into adding pretrained embeddings.
         # Training Params
         workers = 1,      ##cpu workers for data loading
-        epochs = 1,
+        epochs = 100,
         batch_size = 12,
-        encoder_lr = 1e-4,
-        decoder_lr = 4e-4,
+        encoder_lr = 3e-4,
+        decoder_lr = 3e-4,
 
         # Data Params
         remove_punct = '<>"',

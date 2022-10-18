@@ -29,7 +29,7 @@ class MetricLog:
         """Empty the log file if it already exists."""
         open(self.file, 'w').close()
 
-def LoadMetricLog(filepath):
+def load_MetricLog(filepath):
     values = []
     with open(filepath, "r") as f:
         for line in f:
@@ -48,12 +48,16 @@ def topkaccuracy(logits, targets, topk=1):
     correct_total = correct.view(-1).float().sum()
     return correct_total.item() * (100.0 / batch_size)
 
+
+
+
 def adjust_lr_step(optimizer, reduction_factor):
+    """Adjust LR for the given optimizer and return new LR value
+    """
     for param_group in optimizer.param_groups:
         param_group['lr'] = param_group['lr'] * reduction_factor
     
     return optimizer.param_groups[0]['lr']
-
 
 def adjust_lr_poly(optimizer, initial_lr, iteration, max_iter):
     """Sets the learning rate

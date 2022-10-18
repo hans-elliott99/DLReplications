@@ -7,15 +7,14 @@ import tarfile
 import pathlib
 import shutil
 
-from dlrep.ImageCaptioning.data.dataload import String2Int, load_meta
+from dlrep.ImageCaptioning.utils.dataload import String2Int, load_meta
 from dlrep.ImageCaptioning.models import ShowAttendTell
 
 def save_checkpoint(out_dir, config:dict, string2int_dict:dict, info:dict, 
                     encoder_sd, decoder_sd, encoder_optimizer_sd, decoder_optimizer_sd, 
                     is_best=False, filename='checkpoint'):
-    """
-    Save model state_dicts to out_dir/filename/. Saves encoder, decoder, their optimizers.
-    Also saves the config, string2int_dict, paths to the saved state_dicts, and other information as model 'metadata'.  
+    """Save model state_dicts to out_dir/filename.tar. Saves the state of the encoder, decoder, and their optimizers.\n
+    Also saves the model config, the string2int_dict (String2Int.save_dict()), and any provided 'info' as model 'metadata'.  
     """
     if is_best:
         filename = 'best_'+filename
