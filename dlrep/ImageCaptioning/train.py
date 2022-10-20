@@ -106,7 +106,7 @@ def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
     if log_wandb:
         try:
             wandb.watch(encoder, log='all', log_freq=40, idx=1)
-            wandb.watch(decoder, log='all', log_freq=40, idx=1)
+            wandb.watch(decoder, log='all', log_freq=40, idx=2)
         except Exception as e:
             print(e, "Ensure wandb.init() has been called prior to training.")
 
@@ -189,7 +189,8 @@ def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device,
             )
             epochs_since_improve = 0 ##reset to 0 if we have an improvement
             print(f"Saving new best. BLEU4 = {bleu4 :.5E}. ModelSaveTime={time.time()-sv_st :.3f}s\n")
-
+        else:
+            epochs_since_imporve = 0 ##just reset if not saving   
 
 def batched_train(train_dataloader, encoder, decoder, enc_optim, dec_optim, criterion, config, device, gpu_obj, epoch, batch_print_freq):
     encoder.train()
@@ -205,6 +206,7 @@ def batched_train(train_dataloader, encoder, decoder, enc_optim, dec_optim, crit
 
         x = x.to(device)
         y = y.to(device)
+##! WRONG - is_cuss only true if we're using gpu
         assert (x.is_cuda == True) & (y.is_cuda == True), f"put data on {device}"
         avg_datatime.update(time.time()-start)
 
@@ -216,7 +218,7 @@ def batched_train(train_dataloader, encoder, decoder, enc_optim, dec_optim, crit
         ## sort target captions as they were sorted by the decoder
         ## ignore the first token in the caption since it is the start token, which we fed the model
         targets = y[sort_idx][:, 1:]
-        ## use 'pack_padded_sequences' remove 'timesteps' which were either padded or not decoded - https://stackoverflow.com/questions/51030782/why-do-we-pack-the-sequences-in-pytorch
+        ## use 'pack_padded_sequences' to remove 'timesteps' which were either padded or not decoded - https://stackoverflow.com/questions/51030782/why-do-we-pack-the-sequences-in-pytorch
         ## we already determined the decode lengths in the decoder^
         ## do this for the logits and targets
         logits = torch.nn.utils.rnn.pack_padded_sequence(logits, lengths=decode_lengths, batch_first=True)[0].to(device)
@@ -252,7 +254,7 @@ def batched_train(train_dataloader, encoder, decoder, enc_optim, dec_optim, crit
 
         start = time.time() ##reset start time
 
-    # Epoch-wise metric logging
+    # Epoch-wise metrics
     return avg_loss, avg_top5acc
 
 @torch.no_grad()
