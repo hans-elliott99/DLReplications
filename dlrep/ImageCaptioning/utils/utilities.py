@@ -60,7 +60,7 @@ def adjust_lr_step(optimizer, reduction_factor):
     return optimizer.param_groups[0]['lr']
 
 def adjust_lr_poly(optimizer, initial_lr, iteration, max_iter):
-    """Sets the learning rate
+    """Sets the learning rate over training and returns the new LR value.
     # Adapted from PyTorch Imagenet example:
     # https://github.com/pytorch/examples/blob/master/imagenet/main.py
     """
@@ -70,6 +70,16 @@ def adjust_lr_poly(optimizer, initial_lr, iteration, max_iter):
 
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
-
     return lr
     
+
+def clip_grad_values(optimizer, grad_clip):
+    """Value clips the gradients of params in the given optimizer before applying them.
+
+    optimizer: optimizer containing the params to be clipped.
+    grad_clip: gradients are clamped between [-grad_clip, grad_clip]
+    """
+    for group in optimizer.param_groups:
+        for param in group['params']:
+            if param.grad is not None:
+                param.grad.data.clamp_(-grad_clip, grad_clip)

@@ -117,20 +117,24 @@ class AttentionDecoder(torch.nn.Module):
         #hidden state + weight init
         self.init_h = torch.nn.Linear(enc_output_dim, dec_hidden_dim) ##learnable layers for initializing hidden states
         self.init_c = torch.nn.Linear(enc_output_dim, dec_hidden_dim)
-        self._init_weights()
+        self._special_init_weights()
 
         self.n_params = sum(p.nelement() for p in self.parameters())
 
-    def _init_weights(self):
+    def _special_init_weights(self):
         """
-        Prep specific params with better weight initialization for better convergence.
+        Prep specific params with certain weight initialization stategies for better convergence.
         """
+        # embeddings
+        emb_bias = (3. / self.embed_dim) ** 0.5
+        self.output_embed.weight.data.uniform_(-emb_bias, emb_bias)
+
         for child in self.children():
             if isinstance(child, (torch.nn.Linear)):
                 torch.nn.init.xavier_normal_(child.weight)
-        self.output_embed.weight.data.uniform_(-0.1, 0.1)
+
         self.fc_head.bias.data.fill_(0)
-        self.fc_head.weight.data.uniform_(-0.1, 0.1)
+        self.fc_head.weight.data.uniform_(-1/self.vocab_size, 1/self.vocab_size)
 
     def init_hidden(self, encoder_output):
         """
@@ -202,3 +206,30 @@ class AttentionDecoder(torch.nn.Module):
             alphas[:batch_size_t, t, :] = alpha
         
         return predictions, alphas, decode_lengths, sort_idx
+
+
+def get_config_details():
+        return dict(
+        # Model Params
+        dec_embed_dim = "int, dimension of caption word embeddings",
+        dec_hidden_dim = "int, dim of hidden states for decoded RNN",
+        attention_dim = "int,  dim of attention network (number of neurons)",
+        activ_fn = "like torch.nn.ReLU, activation function used in attention network",
+        dropout = "float, dropout prob. applied to hidden state before network's classifier",
+        enc_finetune = "bool, whether to finetune encoder",
+
+        # Training Params
+        workers = "int, suggest 1, cpu workers for data loading",
+        epochs = "int, training epochs",
+        batch_size = "int, batch size for training and validation",
+        encoder_lr = "float",
+        decoder_lr = "float",
+        alpha_c = "float. Regularization parameter for 'doubly stochastic attention', as in the paper sec. 4.2.1 equation 14. set to 0 to ignore.",
+        grad_clip = "float. Clamps gradients between [-grad_clip, +grad_clip]. None to ignore.",
+
+        # Data Params
+        remove_punct = "str, like '<>-;'",
+        start_token = 'str, like <sos>',
+        stop_token = 'str, like <eos>',
+        pad_token = 'str, like <pad>',
+    )

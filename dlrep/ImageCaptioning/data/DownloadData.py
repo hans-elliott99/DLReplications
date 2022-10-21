@@ -6,7 +6,7 @@ import io
 import json
 import PIL.Image
 
-# DATA: CONCEPTUAL CAPTIONS
+# DATA: CONCEPTUAL CAPTIONS, https://ai.google.com/research/ConceptualCaptions/
 
 PATH_TO_METADATA = os.path.abspath("./metadata")
 PATH_TO_DIR = os.path.abspath(".")
