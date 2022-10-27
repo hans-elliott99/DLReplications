@@ -1,7 +1,7 @@
 # Show, Attend and Tell: Neural Image Caption Generation with Visual Attention
-Paper: Xu et al. 2016 - http://proceedings.mlr.press/v37/xuc15.pdf  
+`Paper:` Xu et al. 2016 - http://proceedings.mlr.press/v37/xuc15.pdf  
 
-Code Inspiration: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Image-Captioning/  
+`Code Inspiration:` https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Image-Captioning/  
 
 ## Encoder
 A ConvNet is used to **encode** images. In the paper an Oxford VGGNet is used, and here I used a ResNet.  
