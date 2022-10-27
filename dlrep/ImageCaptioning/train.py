@@ -19,7 +19,6 @@ from .utils.dataload import ImageCaptionDataset, String2Int, load_meta
 from .models import ShowAttendTell
 from .utils import SaveModel, utilities
 
-
 #TODO: pretrained word embeddings.
 
 def train_loop(Xy_train:tuple, Xy_valid:tuple, config, device, stoi_dict=None, checkpoint=None,
