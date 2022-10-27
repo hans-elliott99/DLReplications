@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-from dacite import from_dict
 import torch
 from nltk.translate.bleu_score import corpus_bleu
 import wandb
